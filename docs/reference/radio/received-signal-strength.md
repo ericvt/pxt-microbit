@@ -23,16 +23,16 @@ This function only works on the micro:bit, not in browsers.
 
 ### Example
 
-This example shows how strong the radio signal of the
-[light level sender example](/reference/radio/send-number) is.
+The micro:bit sends the serial number when button A is pressed. When receiving a number, the RSSI is displayed.
 
 ```blocks
-let x = 0;
-radio.setGroup(99);
-basic.forever(() => {
-    x = radio.receiveNumber();
+basic.onDataReceived(() => {
+    radio.receiveNumber();
     basic.showNumber(radio.receivedSignalStrength());
 });
+input.onButtonPressed(Button.A, () => {
+    radio.sendNumber(control.deviceSerialNumber());
+})
 ```
 
 ### See also

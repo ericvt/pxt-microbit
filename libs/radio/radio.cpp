@@ -43,7 +43,7 @@ namespace radio {
      */
     //% help=radio/send-number
     //% weight=60
-    //% blockId=radio_datagram_send block="radio send number %value" blockGap=8
+    //% blockId=radio_datagram_send block="radio|send number %value" blockGap=8
     void sendNumber(int value) {
         if (radioEnable() != MICROBIT_OK) return;
         uint32_t t = system_timer_current_time();
@@ -60,7 +60,7 @@ namespace radio {
     */
     //% help=radio/send-value
     //% weight=59
-    //% blockId=radio_datagram_send_value block="radio send|value %name|= %value" blockGap=8
+    //% blockId=radio_datagram_send_value block="radio|send value %name|= %value" blockGap=8
     void sendValue(StringData* name, int value) {
         if (radioEnable() != MICROBIT_OK) return;
 
@@ -86,7 +86,7 @@ namespace radio {
      */
     //% help=radio/send-string
     //% weight=58
-    //% blockId=radio_datagram_send_string block="radio send string %msg"
+    //% blockId=radio_datagram_send_string block="radio|send string %msg"
     void sendString(StringData* msg) {
         if (radioEnable() != MICROBIT_OK) return;
 
@@ -98,12 +98,178 @@ namespace radio {
     }
 
     /**
+    * Reads the next packet as a string and returns it.
+    */
+    //% blockId=radio_datagram_receive_string block="radio|receive string" blockGap=8
+    //% weight=44
+    //% help=radio/receive-string
+    StringData* receiveString() {
+        if (radioEnable() != MICROBIT_OK) return ManagedString().leakData();
+        packet = uBit.radio.datagram.recv();
+        return ManagedString(packet).leakData();
+    }
+
+    /**
+     * Reads the next packet as a number from the radio queue.
+     */
+    //% help=radio/receive-number
+    //% weight=46
+    //% blockId=radio_datagram_receive block="radio|receive number" blockGap=8
+    int receiveNumber()
+    {
+        if (radioEnable() != MICROBIT_OK) return 0;
+
+        packet = uBit.radio.datagram.recv();
+        const int length = packet.length();
+        if (length >= 4) {
+            int value;
+            const uint8_t* bytes = packet.getBytes();
+            memcpy(&value, bytes, 4);
+            return value;
+        }
+        return 0;
+    }
+
+    /**
+     * Reads a number at a given index, between ``0`` and ``3``, from the packet received by ``receive number``. Not supported in simulator.
+     * @param index index of the number to read from 0 to 3. 1 eg
+     */
+    //% help=radio/received-number-at
+    //% weight=45 debug=true
+    //% advanced=true
+    int receivedNumberAt(int index) {
+        if (0 <= index && index < min(3,packet.length() / 4)) {
+            // packet.getBytes() is not aligned
+            int r;
+            memcpy(&r, packet.getBytes() + index * 4, 4);
+            return r;
+        }
+        return 0;
+    }
+
+    /**
+    * Reads the serial number from the received packet if any.
+    */
+    //% help=radio/received-serial-number
+    //% weight=44 advanced=true
+    //% blockId=radio_received_serial_number block="radio|received serial number"
+    int receivedSerialNumber() {
+        const int length = packet.length();
+        if (length >= 12) {
+            int value;
+            const uint8_t* bytes = packet.getBytes();
+            memcpy(&value, bytes + 8, 4);
+            return value;
+        }
+        return 0;        
+    }    
+
+    /**
+    * Reads the time (ms) from the received packet if any.
+    */
+    //% help=radio/received-serial-time
+    //% weight=43 advanced=true
+    //% blockId=radio_received_time block="radio|received time (ms)"
+    int receivedTime() {
+        const int length = packet.length();
+        if (length >= 8) {
+            int value;
+            const uint8_t* bytes = packet.getBytes();
+            memcpy(&value, bytes + 4, 4);
+            return value;
+        }
+        return 0;        
+    }    
+
+    /**
+    * Reads the name from the received packet if any.
+    */
+    //% help=radio/received-serial-name
+    //% weight=46 advanced=true
+    //% blockId=radio_received_name block="radio|received name"
+    StringData* receivedName() {
+        const int length = packet.length();
+        if (length >= 13) {
+            char name[MAX_FIELD_NAME_LENGTH+1];
+            const uint8_t* bytes = packet.getBytes();
+            uint8_t len = min(MAX_FIELD_NAME_LENGTH, bytes[12]);
+            memcpy(name, bytes + 13, len);
+            name[len] = 0;
+            return ManagedString(name).leadData();
+        }
+        return ManagedString("").leakData();
+    }    
+
+    /**
+     * Registers code to run when a packet is received over radio.
+     */
+    //% help=radio/on-data-received
+    //% weight=50
+    //% blockId=radio_datagram_received_event block="radio|on data received" blockGap=8
+    void onDataReceived(Action body) {
+        if (radioEnable() != MICROBIT_OK) return;
+        registerWithDal(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, body);
+        // make the the receive buffer has a free spot
+        receiveNumber();
+    }
+
+    /**
+     * Gets the received signal strength indicator (RSSI) from the packet received by ``receive number``. Not supported in simulator.
+     * namespace=radio
+     */
+    //% help=radio/received-signal-strength
+    //% weight=40
+    //% blockId=radio_datagram_rssi block="radio|received signal strength"
+    //% advanced=true
+    int receivedSignalStrength() {
+        return packet.getRSSI();
+    }
+
+    /**
+     * Sets the group id for radio communications. A micro:bit can only listen to one group ID at any time.
+     * @ param id the group id between ``0`` and ``255``, 1 eg
+     */
+    //% help=radio/set-group
+    //% weight=10 blockGap=8 advanced=true
+    //% blockId=radio_set_group block="radio|set group %ID"
+    void setGroup(int id) {
+        if (radioEnable() != MICROBIT_OK) return;
+        uBit.radio.setGroup(id);
+    }
+
+    /**
+     * Change the output power level of the transmitter to the given value.
+    * @param power a value in the range 0..7, where 0 is the lowest power and 7 is the highest. eg: 7
+    */
+    //% help=radio/set-transmit-power
+    //% weight=9 blockGap=8
+    //% blockId=radio_set_transmit_power block="radio|set transmit power %power"
+    //% advanced=true
+    void setTransmitPower(int power) {
+        if (radioEnable() != MICROBIT_OK) return;
+        uBit.radio.setTransmitPower(power);
+    }
+
+    /**
+    * Set the radio to transmit the serial number in each message.
+    * @param transmit value indicating if the serial number is transmitted, eg: true
+    */
+    //% help=radio/set-transmit-serial-number
+    //% weight=8 blockGap=8
+    //% blockId=radio_set_transmit_serial_number block="radio|set transmit serial number %transmit"
+    //% advanced=true
+    void setTransmitSerialNumber(bool transmit) {
+        if (radioEnable() != MICROBIT_OK) return;
+        transmitSerialNumber = transmit;
+    }
+
+    /**
     * Reads a value sent with `stream value` and writes it
     * to the serial stream as JSON
     */
     //% help=radio/write-value-to-serial
     //% weight=3
-    //% blockId=radio_write_value_serial block="radio write value to serial"
+    //% blockId=radio_write_value_serial block="radio|write value to serial"
     //% advanced=true
     void writeValueToSerial() {
         if (radioEnable() != MICROBIT_OK) return;
@@ -133,113 +299,5 @@ namespace radio {
             }
         }
         uBit.serial.send("}\r\n");
-    }
-
-
-    /**
-     * Reads a number at a given index, between ``0`` and ``3``, from the packet received by ``receive number``. Not supported in simulator.
-     * @param index index of the number to read from 0 to 3. 1 eg
-     */
-    //% help=radio/received-number-at
-    //% weight=45 debug=true
-    int receivedNumberAt(int index) {
-        if (radioEnable() != MICROBIT_OK) return 0;
-        if (0 <= index && index < packet.length() / 4) {
-            // packet.getBytes() is not aligned
-            int r;
-            memcpy(&r, packet.getBytes() + index * 4, 4);
-            return r;
-        }
-        return 0;
-    }
-
-    /**
-     * Reads the next packet as a number from the radio queue.
-     */
-    //% help=radio/receive-number
-    //% weight=46
-    //% blockId=radio_datagram_receive block="radio receive number" blockGap=8
-    int receiveNumber()
-    {
-        if (radioEnable() != MICROBIT_OK) return 0;
-        packet = uBit.radio.datagram.recv();
-        return receivedNumberAt(0);
-    }
-
-    /**
-     * Registers code to run when a packet is received over radio.
-     */
-    //% help=radio/on-data-received
-    //% weight=50
-    //% blockId=radio_datagram_received_event block="radio on data received" blockGap=8
-    void onDataReceived(Action body) {
-        if (radioEnable() != MICROBIT_OK) return;
-        registerWithDal(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, body);
-        // make the the receive buffer has a free spot
-        receiveNumber();
-    }
-
-
-    /**
-    * Reads the next packet as a string and returns it.
-    */
-    //% blockId=radio_datagram_receive_string block="radio receive string" blockGap=8
-    //% weight=44
-    //% help=radio/receive-string
-    StringData* receiveString() {
-        if (radioEnable() != MICROBIT_OK) return ManagedString().leakData();
-        packet = uBit.radio.datagram.recv();
-        return ManagedString(packet).leakData();
-    }
-
-    /**
-     * Gets the received signal strength indicator (RSSI) from the packet received by ``receive number``. Not supported in simulator.
-     * namespace=radio
-     */
-    //% help=radio/received-signal-strength
-    //% weight=40
-    //% blockId=radio_datagram_rssi block="radio received signal strength"
-    //% advanced=true
-    int receivedSignalStrength() {
-        if (radioEnable() != MICROBIT_OK) return 0;
-        return packet.getRSSI();
-    }
-
-    /**
-     * Sets the group id for radio communications. A micro:bit can only listen to one group ID at any time.
-     * @ param id the group id between ``0`` and ``255``, 1 eg
-     */
-    //% help=radio/set-group
-    //% weight=10 blockGap=8 advanced=true
-    //% blockId=radio_set_group block="radio set group %ID"
-    void setGroup(int id) {
-        if (radioEnable() != MICROBIT_OK) return;
-        uBit.radio.setGroup(id);
-    }
-
-    /**
-     * Change the output power level of the transmitter to the given value.
-    * @param power a value in the range 0..7, where 0 is the lowest power and 7 is the highest. eg: 7
-    */
-    //% help=radio/set-transmit-power
-    //% weight=9 blockGap=8
-    //% blockId=radio_set_transmit_power block="radio set transmit power %power"
-    //% advanced=true
-    void setTransmitPower(int power) {
-        if (radioEnable() != MICROBIT_OK) return;
-        uBit.radio.setTransmitPower(power);
-    }
-
-    /**
-    * Set the radio to transmit the serial number in each message.
-    * @param transmit value indicating if the serial number is transmitted, eg: true
-    */
-    //% help=radio/set-transmit-serial-number
-    //% weight=8 blockGap=8
-    //% blockId=radio_set_transmit_serial_number block="radio set transmit serial number %transmit"
-    //% advanced=true
-    void setTransmitSerialNumber(bool transmit) {
-        if (radioEnable() != MICROBIT_OK) return;
-        transmitSerialNumber = transmit;
     }
 }
