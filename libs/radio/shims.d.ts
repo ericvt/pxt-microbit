@@ -91,7 +91,6 @@ declare namespace radio {
 
     /**
      * Gets the received signal strength indicator (RSSI) from the packet received by ``receive number``. Not supported in simulator.
-     * namespace=radio
      */
     //% help=radio/received-signal-strength
     //% weight=40
@@ -100,8 +99,8 @@ declare namespace radio {
     function receivedSignalStrength(): number;
 
     /**
-     * Sets the group id for radio communications. A micro:bit can only listen to one group ID at any time.
-     * @ param id the group id between ``0`` and ``255``, 1 eg
+     * Sets the group id for radio communications. A device can only listen to one group ID at any time.
+     * @param id the group id between ``0`` and ``255``, eg: 42
      */
     //% help=radio/set-group
     //% weight=10 blockGap=8 advanced=true
@@ -129,8 +128,7 @@ declare namespace radio {
     function setTransmitSerialNumber(transmit: boolean): void;
 
     /**
-     * Reads a value sent with `stream value` and writes it
-     * to the serial stream as JSON
+     * Reads a value sent with `stream value` and writes it to the serial stream as JSON
      */
     //% help=radio/write-value-to-serial
     //% weight=3
